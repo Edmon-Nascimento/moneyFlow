@@ -12,9 +12,29 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: moneyflow
+          POSTGRES_USER: moneyflow_user
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U moneyflow_user -d moneyflow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: backend
+
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/moneyflow
+      DB_USERNAME: moneyflow_user
+      DB_PASSWORD: ci_test_password
 
     steps:
       - name: Checkout repository
