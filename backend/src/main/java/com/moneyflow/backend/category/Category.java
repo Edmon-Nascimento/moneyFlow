@@ -38,6 +38,12 @@ public class Category {
 		this.targetPercentage = targetPercentage;
 	}
 
+	public void update(String name, CategoryType type, BigDecimal targetPercentage) {
+		this.name = name;
+		this.type = type;
+		this.targetPercentage = targetPercentage;
+	}
+
 	public Long getId() {
 		return id;
 	}
