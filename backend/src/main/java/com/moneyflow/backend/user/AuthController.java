@@ -1,0 +1,10 @@
+package com.moneyflow.backend.user;
+import java.time.Instant; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import org.springframework.http.*; import org.springframework.security.crypto.password.PasswordEncoder; import org.springframework.security.oauth2.jwt.*; import org.springframework.transaction.annotation.Transactional; import org.springframework.web.bind.annotation.*;
+@RestController @RequestMapping("/api/auth") public class AuthController {
+ private final AppUserRepository users; private final PasswordEncoder passwords; private final JwtEncoder encoder; private final com.moneyflow.backend.category.CategoryOwnershipRepository categories;
+ AuthController(AppUserRepository users,PasswordEncoder passwords,JwtEncoder encoder,com.moneyflow.backend.category.CategoryOwnershipRepository categories){this.users=users;this.passwords=passwords;this.encoder=encoder;this.categories=categories;}
+ @PostMapping("/register") @Transactional public ResponseEntity<Token> register(@Valid @RequestBody Credentials c){if(users.findByEmail(c.email()).isPresent()) return ResponseEntity.status(409).build(); boolean first=users.count()==0; AppUser u=users.save(new AppUser(c.email().toLowerCase(),passwords.encode(c.password()))); if(first)categories.assignUnowned(u.getId()); return ResponseEntity.status(201).body(token(u));}
+ @PostMapping("/login") public ResponseEntity<Token> login(@Valid @RequestBody Credentials c){return users.findByEmail(c.email().toLowerCase()).filter(u->passwords.matches(c.password(),u.getPasswordHash())).map(this::token).map(ResponseEntity::ok).orElse(ResponseEntity.status(401).build());}
+ private Token token(AppUser u){Instant now=Instant.now(); return new Token(encoder.encode(JwtEncoderParameters.from(JwsHeader.with(org.springframework.security.oauth2.jose.jws.MacAlgorithm.HS256).build(),JwtClaimsSet.builder().subject(u.getId().toString()).issuedAt(now).expiresAt(now.plusSeconds(3600)).claim("email",u.getEmail()).build())).getTokenValue());}
+ record Credentials(@Email String email,@Size(min=8,max=100) String password){} record Token(String accessToken){}
+}

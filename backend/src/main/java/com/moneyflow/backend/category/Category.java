@@ -10,6 +10,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.JoinColumn;
+import com.moneyflow.backend.user.AppUser;
 
 @Entity
 @Table(name = "categories")
@@ -29,6 +32,10 @@ public class Category {
 	@Column(name = "target_percentage", precision = 5, scale = 2)
 	private BigDecimal targetPercentage;
 
+	@ManyToOne
+	@JoinColumn(name = "user_id")
+	private AppUser user;
+
 	protected Category() {
 	}
 
@@ -37,6 +44,8 @@ public class Category {
 		this.type = type;
 		this.targetPercentage = targetPercentage;
 	}
+
+	public void assignUser(AppUser user) { this.user = user; }
 
 	public void update(String name, CategoryType type, BigDecimal targetPercentage) {
 		this.name = name;
