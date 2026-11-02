@@ -1,5 +1,6 @@
 package com.moneyflow.backend.budget;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,68 +27,74 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class BudgetAlertIntegrationTests {
 
-	@Autowired
-	private MockMvc mockMvc;
+    @Autowired
+    private MockMvc mockMvc;
 
-	@Autowired
-	private CategoryRepository categoryRepository;
+    @Autowired
+    private CategoryRepository categoryRepository;
 
-	@Autowired
-	private FinancialTransactionRepository transactionRepository;
+    @Autowired
+    private FinancialTransactionRepository transactionRepository;
 
-	@Test
-	void reportsOnlyCategoriesThatExceededTheirTargetComparedWithMonthlyIncome() throws Exception {
-		Category incomeCategory = categoryRepository.saveAndFlush(
-				new Category("Salário", CategoryType.INCOME, null));
-		Category exceededCategory = categoryRepository.saveAndFlush(
-				new Category("Alimentação", CategoryType.EXPENSE, new BigDecimal("20.00")));
-		Category atLimitCategory = categoryRepository.saveAndFlush(
-				new Category("Transporte", CategoryType.EXPENSE, new BigDecimal("10.00")));
+    @Test
+    void reportsOnlyCategoriesThatExceededTheirTargetComparedWithMonthlyIncome() throws Exception {
+        Category incomeCategory = categoryRepository.saveAndFlush(
+                new Category("Salário", CategoryType.INCOME, null));
+        Category exceededCategory = categoryRepository.saveAndFlush(
+                new Category("Alimentação", CategoryType.EXPENSE, new BigDecimal("20.00")));
+        Category atLimitCategory = categoryRepository.saveAndFlush(
+                new Category("Transporte", CategoryType.EXPENSE, new BigDecimal("10.00")));
 
-		saveTransaction("Salário", "4000.00", FinancialTransactionType.INCOME,
-				LocalDate.of(2026, 10, 2), incomeCategory);
-		saveTransaction("Mercado", "1000.00", FinancialTransactionType.EXPENSE,
-				LocalDate.of(2026, 10, 20), exceededCategory);
-		saveTransaction("Ônibus", "400.00", FinancialTransactionType.EXPENSE,
-				LocalDate.of(2026, 10, 8), atLimitCategory);
-		saveTransaction("Cinema", "500.00", FinancialTransactionType.EXPENSE,
-				LocalDate.of(2026, 11, 8), exceededCategory);
+        saveTransaction("Salário", "4000.00", FinancialTransactionType.INCOME,
+                LocalDate.of(2026, 10, 2), incomeCategory);
+        saveTransaction("Mercado", "1000.00", FinancialTransactionType.EXPENSE,
+                LocalDate.of(2026, 10, 20), exceededCategory);
+        saveTransaction("Ônibus", "400.00", FinancialTransactionType.EXPENSE,
+                LocalDate.of(2026, 10, 8), atLimitCategory);
+        saveTransaction("Cinema", "500.00", FinancialTransactionType.EXPENSE,
+                LocalDate.of(2026, 11, 8), exceededCategory);
 
-		mockMvc.perform(get("/api/budget-alerts").param("month", "2026-10"))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.month").value("2026-10"))
-			.andExpect(jsonPath("$.monthlyIncome").value(4000.00))
-			.andExpect(jsonPath("$.alerts.length()").value(1))
-			.andExpect(jsonPath("$.alerts[0].categoryName").value("Alimentação"))
-			.andExpect(jsonPath("$.alerts[0].targetPercentage").value(20.00))
-			.andExpect(jsonPath("$.alerts[0].spentPercentage").value(25.00))
-			.andExpect(jsonPath("$.alerts[0].spentAmount").value(1000.00));
-	}
+        mockMvc.perform(get("/api/budget-alerts")
+                        .with(user("test-user"))
+                        .param("month", "2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.month").value("2026-10"))
+                .andExpect(jsonPath("$.monthlyIncome").value(4000.00))
+                .andExpect(jsonPath("$.alerts.length()").value(1))
+                .andExpect(jsonPath("$.alerts[0].categoryName").value("Alimentação"))
+                .andExpect(jsonPath("$.alerts[0].targetPercentage").value(20.00))
+                .andExpect(jsonPath("$.alerts[0].spentPercentage").value(25.00))
+                .andExpect(jsonPath("$.alerts[0].spentAmount").value(1000.00));
+    }
 
-	@Test
-	void doesNotBlockFurtherTransactionsAfterReportingAnExceededTarget() throws Exception {
-		Category incomeCategory = categoryRepository.saveAndFlush(
-				new Category("Salário", CategoryType.INCOME, null));
-		Category expenseCategory = categoryRepository.saveAndFlush(
-				new Category("Lazer", CategoryType.EXPENSE, new BigDecimal("10.00")));
-		saveTransaction("Salário", "1000.00", FinancialTransactionType.INCOME,
-				LocalDate.of(2026, 10, 2), incomeCategory);
-		saveTransaction("Viagem", "200.00", FinancialTransactionType.EXPENSE,
-				LocalDate.of(2026, 10, 8), expenseCategory);
+    @Test
+    void doesNotBlockFurtherTransactionsAfterReportingAnExceededTarget() throws Exception {
+        Category incomeCategory = categoryRepository.saveAndFlush(
+                new Category("Salário", CategoryType.INCOME, null));
+        Category expenseCategory = categoryRepository.saveAndFlush(
+                new Category("Lazer", CategoryType.EXPENSE, new BigDecimal("10.00")));
 
-		mockMvc.perform(get("/api/budget-alerts").param("month", "2026-10"))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.alerts.length()").value(1));
+        saveTransaction("Salário", "1000.00", FinancialTransactionType.INCOME,
+                LocalDate.of(2026, 10, 2), incomeCategory);
+        saveTransaction("Viagem", "200.00", FinancialTransactionType.EXPENSE,
+                LocalDate.of(2026, 10, 8), expenseCategory);
 
-		FinancialTransaction laterTransaction = saveTransaction("Jantar", "50.00",
-				FinancialTransactionType.EXPENSE, LocalDate.of(2026, 10, 9), expenseCategory);
+        mockMvc.perform(get("/api/budget-alerts")
+                        .with(user("test-user"))
+                        .param("month", "2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.alerts.length()").value(1));
 
-		org.assertj.core.api.Assertions.assertThat(transactionRepository.existsById(laterTransaction.getId())).isTrue();
-	}
+        FinancialTransaction laterTransaction = saveTransaction("Jantar", "50.00",
+                FinancialTransactionType.EXPENSE, LocalDate.of(2026, 10, 9), expenseCategory);
 
-	private FinancialTransaction saveTransaction(String description, String amount,
-			FinancialTransactionType type, LocalDate date, Category category) {
-		return transactionRepository.saveAndFlush(
-				new FinancialTransaction(description, new BigDecimal(amount), type, date, category));
-	}
+        org.assertj.core.api.Assertions.assertThat(
+                transactionRepository.existsById(laterTransaction.getId())).isTrue();
+    }
+
+    private FinancialTransaction saveTransaction(String description, String amount,
+                                                 FinancialTransactionType type, LocalDate date, Category category) {
+        return transactionRepository.saveAndFlush(
+                new FinancialTransaction(description, new BigDecimal(amount), type, date, category));
+    }
 }
